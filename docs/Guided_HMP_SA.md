@@ -152,11 +152,3 @@ W_{t+1}(I) = W_t(I) (1 - γ)
 Ý tưởng: Feature hữu ích liên tục sẽ giữ weight cao; thông tin cũ hoặc chỉ tình cờ hữu ích sẽ dần mất ảnh hưởng.
 
 ---
-
-## Ghi chú & phần cần mở rộng
-
-- Phần tiếp theo cần được mở rộng: cách chọn cấu trúc để làm đại diện, các định nghĩa chi tiết hơn về việc cập nhật weight, cách sampling dùng weight vector để sinh candidate, và thí nghiệm so sánh với HMP-SA.
-
-
-
-(Phần nội dung còn giữ nguyên các đoạn gốc có "[...]" nếu tác giả muốn giữ những chỗ đang viết dang dở.)
