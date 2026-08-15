@@ -47,4 +47,90 @@ Trong chi phí bộ nhớ, ta sẽ đơn giản hóa hơn nữa bằng cách kh�
 
 Tất nhiên ta sẽ vẫn xài nhiều ý tưởng của tiền bối HMP-SA về cách tìm bức tranh tổng thể, các giải pháp tốt sẽ được thiên vị nhưng vẫn là xác suất, có thể cho model đi dạo.
 
-(phần tiếp theo cần được mở rông: TA NÊN CHỌN CẤU TRÚC GÌ LÀM ĐẠI DIỆN? CÁC GIẢI PHÁP MÀ MDL ÍT THÌ NÓ NHƯ THẾ NÀO, CÓ TỐT HƠN HMP-SA KHÔNG?)
+Ta sẽ chọn "cấu trúc" nào để học?
+Đây là câu hỏi quan trọng nhất trong MDL-GSA hiện tại, ta có thể nhìn vào itemsets với các solution khác nhau:
+Cách 1: Nhìn vào itemset - Những itemset nào thường xuất hiện trong các solution có MDL thấp?
+Cách 2: Nhìn vào từng item - Những item nào thường tham gia vào solution tốt?
+Cách 3: Nhìn vào quan hệ giữa các item - Có những cặp hoặc nhóm item nào thường xuất hiện cùng nhau?
+
+Một cách tiếp cận đơn giản đầu tiên: Feature Weight Vector, Thay vì lưu solution 1-n, ta chỉ lưu một vector trọng số, đây chính là compressed memory của search, nhưng trọng số không phải tự nhiên xuất hiện, ta hiện có ít nhất ba giả thuyết độc lập:
+A - Successful Feature: Nếu một feature tham gia vào một mutation làm giảm MDL, feature đó nhận được reinforcement.
+B - Good-Solution Frequency: Một hướng khác không quan tâm trực tiếp feature đã tạo ra bao nhiêu improvement.
+C - Mutation + Feature: "Hành động nào trên feature nào thường tốt?"
+
+
+
+Hệ thống các bước 1 pass:
+        DATABASE
+           │
+           ↓
+     Layer 1: Prior
+           │
+           ↓
+        SEARCH
+           │
+           ↓
+     Layer 2: Reinforcement
+           │
+           ↓
+     Layer 3: Decay
+           │
+           ↓
+   Updated Weight Vector
+           │
+           ↓
+   Multinomial Sampling
+           │
+           ↓
+     Guided Search
+            └──────────────→ repeat
+
+## 3 tầng hình thành Weight
+
+Ta không muốn lưu toàn bộ lịch sử solution. Thay vào đó, search giữ một **Feature Weight Vector** nhỏ gọn, và weight được hình thành từ 3 nguồn:
+
+### Layer 1 — Initial Prior
+
+Trước khi search, dùng structural information có sẵn từ HMP, đặc biệt là **Binary Co-occurrence Matrix**, để khởi tạo:
+
+$$
+W_0(I)
+$$
+
+Ý tưởng:
+
+> Những cấu trúc có quan hệ mạnh trong CSDL được xem là có triển vọng ngay từ đầu.
+
+Đây là **prior**, chưa phải bằng chứng rằng feature thực sự tốt cho MDL.
+
+### Layer 2 — Trajectory Reinforcement
+
+Trong quá trình search, nếu một feature tham gia vào một mutation làm giảm MDL:
+
+$$
+\Delta MDL < 0
+$$
+
+thì tăng weight của nó, ví dụ:
+
+$$
+W_{t+1}(I)
+=
+W_t(I)+\alpha|\Delta MDL|
+$$
+
+Ý tưởng:
+
+> Search không chỉ học từ CSDL, mà còn học từ chính kinh nghiệm optimization của nó.
+
+### Layer 3 — Decay / Forgetting
+
+Một feature từng tốt có thể không còn tốt ở vùng search khác. Vì vậy weight được giảm dần nếu không tiếp tục được reinforcement:
+
+$$
+W_{t+1}(I)=W_t(I)(1-\gamma)
+$$
+
+Ý tưởng:
+
+> Feature hữu ích liên tục sẽ giữ weight cao; thông tin cũ hoặc chỉ tình cờ hữu ích sẽ dần mất ảnh hưởng.
