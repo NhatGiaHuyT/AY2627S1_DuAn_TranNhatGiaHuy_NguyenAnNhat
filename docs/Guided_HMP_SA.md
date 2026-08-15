@@ -114,8 +114,7 @@ $$
 thì tăng weight của nó, ví dụ:
 
 $$
-W_{t+1}(I)
-=
+W_{t+1}(I)=
 W_t(I)+\alpha|\Delta MDL|
 $$
 
