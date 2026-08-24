@@ -1,0 +1,44 @@
+{
+  "landscapes": [
+    "success_sensitive",
+    "frequency_sensitive",
+    "operation_sensitive",
+    "deceptive",
+    "sparse_optimum"
+  ],
+  "variants": [
+    "unguided",
+    "prior_only",
+    "successful_feature",
+    "good_solution_frequency",
+    "mutation_feature"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "landscape": {
+    "n_features": 20
+  },
+  "search": {
+    "iterations": 500,
+    "candidate_pool_size": 5,
+    "temperature_start": 2.0,
+    "temperature_end": 0.01,
+    "elite_fraction": 0.25
+  },
+  "guidance": {
+    "alpha": 0.1,
+    "decay": 0.01,
+    "prior": 1.0,
+    "epsilon": 1e-09
+  }
+}
