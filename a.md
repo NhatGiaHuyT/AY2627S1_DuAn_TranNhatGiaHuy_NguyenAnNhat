@@ -62,8 +62,7 @@ $$L(C, D) = L(C|D) + L(D|C)$$
   - Khởi tạo Ma trận Tam giác Thưa (Sparse Triangular Matrix) từ $D$ động còn lại.
   - Tìm cặp $\{i, j\}$ có tần suất đồng xuất hiện cao nhất.
   - Đưa cặp vào $C$, xóa khỏi $D$, lặp lại đến khi đủ `maxCodeTableSize`.
-- **Sức mạnh tăng tốc thực nghiệm:** ma trận tam giác thưa tối ưu RAM, giảm độ phức tạp từ $O(|D|)$ (quét tuần tự) xuống $O(1)$ (tra cứu trực tiếp). Dẫn chứng: tập Accidents giảm từ 3,144 giây xuống còn 6.13 giây.
-
+    
 ---
 
 Cấu Trúc Ma Trận Tam Giác Thưa (Sparse Triangular Matrix)
