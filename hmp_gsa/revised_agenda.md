@@ -114,7 +114,7 @@ SA không chỉ chấp nhận bước tốt.
 Nếu candidate mới tốt hơn:
 
 ```text
-Δ = L(current) - L(candidate) > 0
+ΔMDL = L(current) - L(candidate) < 0
 ```
 
 thì chấp nhận.
