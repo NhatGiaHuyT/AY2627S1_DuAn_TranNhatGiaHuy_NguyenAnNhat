@@ -66,15 +66,31 @@ $$L(C, D) = L(C|D) + L(D|C)$$
 
 ---
 
-## Phần 4: Ứng dụng phân loại nhãn lớp bằng MDL (Downstream Classification)
+Cấu Trúc Ma Trận Tam Giác Thưa (Sparse Triangular Matrix)
+1. Bối cảnh
 
-- **Mô hình phân loại:** dùng bảng mã tối ưu $C_\ell$ huấn luyện từ mỗi lớp $\ell$.
-- **Quy tắc phân loại:** giao dịch mới $t$ được nén thử bằng bảng mã của tất cả các lớp; gán nhãn theo $\ell$ có $L(t|C_\ell)$ nhỏ nhất.
-- **Đánh giá chéo (10-fold Cross-Validation):** HMP-SA đạt trung bình 80.50% trên các tập benchmark.
-- **(Bổ sung) Thực nghiệm mở rộng cần có:**
-  - Bảng so sánh trên nhiều dataset (không chỉ Accidents).
-  - So sánh với baseline Krimp/SLIM trên cùng chỉ số.
-  - Bổ sung chỉ số compression ratio bên cạnh accuracy.
+Trong Giai đoạn 2 của HMP-SA (GreedyPatternSelection), thuật toán cần liên tục tìm cặp mục dữ liệu {i, j} có tần suất đồng xuất hiện cao nhất trong cơ sở dữ liệu động còn lại, để lấp đầy bảng mã C cho đến khi đạt maxCodeTableSize.
+
+Nếu quét tuần tự toàn bộ D mỗi lần cần tìm một cặp như vậy, chi phí là O(|D|) cho mỗi lần tìm — rất tốn kém khi phải lặp lại nhiều lần. Ma trận Tam giác Thưa được dùng để đưa chi phí tra cứu này xuống O(1).
+
+2. Cấu trúc lưu trữ
+Tam giác: tần suất đồng xuất hiện có tính đối xứng — count(i,j) = count(j,i) — nên chỉ cần lưu nửa trên của ma trận (i < j). Giảm ngay khoảng 50% bộ nhớ so với ma trận đầy đủ.
+Thưa (Sparse): trong nửa tam giác đó, phần lớn cặp (i,j) có count = 0 (không bao giờ đồng xuất hiện trong bất kỳ giao dịch nào). Thay vì cấp phát mảng cố định n × n, chỉ lưu các cặp có count > 0, thường dùng cấu trúc dạng hash map: {(i, j): count}.
+
+4. Quy trình xây dựng (Build phase)
+Duyệt qua từng giao dịch t ∈ D.
+Với mỗi cặp mục {i, j} ⊆ t (tổ hợp chập 2 trong giao dịch): tăng count(i,j) += 1.
+Lặp lại cho toàn bộ D.
+
+Độ phức tạp xây dựng: O(|D| × k̄²), với k̄ là độ dài trung bình của một giao dịch. Đây là chi phí một lần duy nhất (upfront cost), đổi lại các lần tra cứu sau đó chỉ mất O(1).
+
+4. Cập nhật động (Update phase)
+
+Sau mỗi lượt Greedy chọn ra cặp {i, j} tối ưu:
+
+Cặp này được đưa vào bảng mã C và xóa khỏi D.
+Ma trận không cần xây dựng lại từ đầu — chỉ cần cập nhật (giảm) count của các cặp liên quan đến i và j trong những giao dịch bị ảnh hưởng.
+Đây là điểm mấu chốt để giữ được lợi ích tốc độ: nếu phải rebuild O(|D|) sau mỗi lượt chọn, ưu thế tra cứu O(1) sẽ bị triệt tiêu.
 
 ---
 
