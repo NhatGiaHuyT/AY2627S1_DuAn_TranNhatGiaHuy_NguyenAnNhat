@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from modules.subset import SubsetSelectionAdapter
+try:
+    from modules.subset import SubsetSelectionAdapter
+except ModuleNotFoundError:  # pragma: no cover - legacy import mode
+    from modules.subset import SubsetSelectionAdapter
 
 
 class SyntheticLandscape(SubsetSelectionAdapter):

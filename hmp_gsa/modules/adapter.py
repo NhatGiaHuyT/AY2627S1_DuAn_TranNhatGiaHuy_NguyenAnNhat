@@ -37,3 +37,21 @@ class GSAAdapter(ABC):
 
     def operation_of_move(self, move: Move) -> str:
         return move.operation
+
+    def prior_weight(
+        self,
+        state: Any,
+        move: Move,
+        prior: Mapping[Feature, float] | None = None,
+    ) -> float:
+        """Optional dynamic prior contribution for a candidate move.
+
+        The initial memory prior is still represented by `initial_prior()` and
+        `_ensure_weight(...)`. This hook is reserved for future dataset-derived
+        guidance such as a co-occurrence prior `P(move | state, dataset)`.
+        """
+        if prior is None:
+            return 1.0
+        key = self.feature_of_move(move)
+        value = prior.get(key, 1.0)
+        return float(value) if value is not None else 1.0

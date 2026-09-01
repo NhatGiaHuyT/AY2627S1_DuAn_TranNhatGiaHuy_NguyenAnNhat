@@ -6,7 +6,6 @@ from pathlib import Path
 from .gsa import VARIANTS, run_search
 from .landscapes import SyntheticLandscape
 
-
 def _trace_row(step):
     return {
         "iteration": step.iteration,

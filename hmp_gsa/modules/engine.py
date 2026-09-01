@@ -113,14 +113,28 @@ class HMPGSA(ABC):
             )
         return self.weights[key]
 
+    def _candidate_weight(
+        self,
+        move: Move,
+        state: Any,
+        prior: Mapping[Feature, float],
+    ) -> float:
+        key = self.key_for_move(move)
+        memory_weight = self._ensure_weight(key, prior)
+        dynamic_prior_weight = self.adapter.prior_weight(state, move, prior)
+        return max(self.epsilon, memory_weight * float(dynamic_prior_weight))
+
     def sample_weighted_move(
-        self, moves: list[Move], prior: Mapping[Feature, float]
+        self,
+        moves: list[Move],
+        state: Any,
+        prior: Mapping[Feature, float],
     ) -> tuple[Move, float, GuidanceKey]:
         if not moves:
             raise ValueError("Adapter returned an empty candidate pool.")
 
         keys = [self.key_for_move(m) for m in moves]
-        weights = [self._ensure_weight(k, prior) for k in keys]
+        weights = [self._candidate_weight(move, state, prior) for move in moves]
         total = sum(weights)
 
         if total <= 0:
@@ -162,7 +176,9 @@ class HMPGSA(ABC):
             if not moves:
                 continue
 
-            move, sampled_probability, key = self.sample_weighted_move(moves, prior)
+            move, sampled_probability, key = self.sample_weighted_move(
+                moves, state, prior
+            )
             candidate = self.adapter.apply_move(state, move)
             candidate_score = self.adapter.evaluate(candidate)
             evaluations += 1

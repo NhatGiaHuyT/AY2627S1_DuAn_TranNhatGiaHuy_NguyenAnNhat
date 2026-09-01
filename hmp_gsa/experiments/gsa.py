@@ -1,7 +1,13 @@
-from modules.models import SearchResult
-from modules.control_group import UnguidedGSA, PriorOnlyGSA
-from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
-from configs.settings import engine_kwargs
+try:
+    from modules.models import SearchResult
+    from modules.control_group import UnguidedGSA, PriorOnlyGSA
+    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from configs.settings import engine_kwargs
+except ModuleNotFoundError:  # pragma: no cover - legacy import mode
+    from modules.models import SearchResult
+    from modules.control_group import UnguidedGSA, PriorOnlyGSA
+    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from configs.settings import engine_kwargs
 
 
 VARIANTS = {

@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from ..modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
-from ..modules.control_group import UnguidedGSA, PriorOnlyGSA
-from ..configs.settings import engine_kwargs
-from ..modules.subset import SubsetSelectionAdapter
+try:
+    from ..modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from ..modules.control_group import UnguidedGSA, PriorOnlyGSA
+    from ..configs.settings import engine_kwargs
+    from ..modules.subset import SubsetSelectionAdapter
+except ImportError:  # pragma: no cover - legacy import mode
+    from hmp_gsa.modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from hmp_gsa.modules.control_group import UnguidedGSA, PriorOnlyGSA
+    from hmp_gsa.configs.settings import engine_kwargs
+    from hmp_gsa.modules.subset import SubsetSelectionAdapter
 
 
 class ToyMDLAdapter(SubsetSelectionAdapter):
