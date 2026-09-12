@@ -57,27 +57,9 @@ def print_stats_table(datasets_dict):
 if __name__ == "__main__":
 
     datasets_to_run = {
-        "Accidents": "Datasets/accident.txt",
-        "Adult": "Datasets/adult.txt",
-        "BMSWV1": "Datasets/bmswv1.txt",
-        "Breast": "Datasets/breast.txt",
-        "Chess": "Datasets/chess.txt",
-        "Chess (KRK)": "Datasets/chessKRK.txt",
-        "Connect": "Datasets/connect.txt",
-        "Heart": "Datasets/heart.txt",
-        "Ionosphere": "Datasets/ionosphere.txt",
-        "Iris": "Datasets/iris.txt",
-        "Led7": "Datasets/led7.txt",
-        "Letrecog": "Datasets/letrecog.txt",
-        "Mushroom": "Datasets/mushroom.txt",
-        "Nursery": "Datasets/nursery.txt",
-        "Page Blocks": "Datasets/pageblocks.txt",
-        "Pen Digits": "Datasets/pendigits.txt",
-        "Pima": "Datasets/pima.txt",
-        "Pumsbstar": "Datasets/pumbstar.txt",
-        "Retail": "Datasets/retail.txt",
-        "Tic-tac-toe": "Datasets/tictactoe.txt",
-        "Wine": "Datasets/wine.txt"
+        "Requirements": "Datasets/crawling/requirements.txt",
+        "Themealdb": "Datasets/crawling/themealdb.txt"
+        
     }
     results = {}
     for name, path in datasets_to_run.items():
