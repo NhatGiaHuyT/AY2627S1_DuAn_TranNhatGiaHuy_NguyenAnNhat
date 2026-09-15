@@ -10,7 +10,6 @@ from .models import Move
 
 PriorSpec = Union[float, Mapping[int, float]]
 
-
 @dataclass(frozen=True)
 class SubsetState:
     selected: frozenset[int]

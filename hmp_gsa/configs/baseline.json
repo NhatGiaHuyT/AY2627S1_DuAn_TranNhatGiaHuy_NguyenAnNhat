@@ -1,10 +1,13 @@
 {
-  "landscapes": ["success_sensitive", "frequency_sensitive", "operation_sensitive", "deceptive", "sparse_optimum"],
+  "progress": true,
+  "datasets": [
+    {"name": "requirements", "path": "datasets/crawling/requirements.txt", "max_pattern_size": 2, "candidate_sizes": [1, 2], "max_candidates": 5000},
+    {"name": "themealdb", "path": "datasets/crawling/themealdb.txt", "max_pattern_size": 2, "candidate_sizes": [1, 2], "max_candidates": 5000}
+  ],
   "variants": ["unguided", "prior_only", "successful_feature", "good_solution_frequency", "mutation_feature"],
-  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  "landscape": {"n_features": 20},
+  "seeds": [0, 1, 2],
   "search": {
-    "iterations": 500,
+    "iterations": 30,
     "candidate_pool_size": 5,
     "temperature_start": 2.0,
     "temperature_end": 0.01,

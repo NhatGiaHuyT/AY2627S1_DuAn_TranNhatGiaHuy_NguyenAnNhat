@@ -111,10 +111,16 @@ Neighbor được tạo bằng cách thay đổi pattern hiện tại thông qua
 
 SA không chỉ chấp nhận bước tốt.
 
-Nếu candidate mới tốt hơn:
+Đặt:
 
 ```text
-ΔMDL = L(current) - L(candidate) < 0
+ΔMDL = L(candidate) - L(current)
+```
+
+Vì MDL được cực tiểu hóa, candidate mới tốt hơn khi:
+
+```text
+ΔMDL < 0
 ```
 
 thì chấp nhận.
@@ -122,8 +128,12 @@ thì chấp nhận.
 Nếu candidate mới xấu hơn, nó vẫn có thể được chấp nhận với một xác suất phụ thuộc vào nhiệt độ:
 
 ```text
-P(accept) = exp(Δ / T)
+P(accept) = exp(-ΔMDL / T)
 ```
+
+Trong mã Java gốc, biến tương đương được viết theo hướng tiết kiệm:
+`improveCompressionSize - newCompressionSize`. Vì vậy cần giữ nhất quán
+quy ước dấu khi trình bày hoặc triển khai Python.
 
 Nhờ đó SA có khả năng đi qua những vùng có objective tạm thời xấu để tiếp tục khám phá không gian tìm kiếm.
 
@@ -147,7 +157,7 @@ D                  -
 
 Giá trị `(A,B)` cho biết mức độ đồng xuất hiện của `A` và `B`.
 
-Ma trận này được xây dựng bằng một pass qua dataset và sau đó cho phép truy vấn support của một cặp item nhanh hơn thay vì liên tục quét lại toàn bộ database.
+Ma trận này được xây dựng bằng một pass qua dataset và sau đó cho phép truy vấn support của một cặp item nhanh hơn thay vì liên tục quét lại toàn bộ database. Chi phí xây dựng vẫn phụ thuộc vào tổng số cặp trong các transaction; `O(1)` chỉ nên dùng cho một lần truy vấn một ô đã được lưu, không phải cho toàn bộ quá trình tìm cặp tốt nhất.
 
 Điều này đặc biệt hữu ích cho heuristic dựa trên pairwise co-occurrence.
 
@@ -268,6 +278,12 @@ W
 ```
 
 Đây là ý tưởng **compressed search memory**.
+
+**Trạng thái triển khai hiện tại:** Python đã có engine Guided-SA, các variant,
+dataset scan và một MDL-like adapter. Tuy nhiên adapter này chưa phải là bản
+dịch đầy đủ của toàn bộ code-table state trong HMP paper/Java. Vì vậy các slide
+về kết quả HMP-GSA phải ghi rõ đây là prototype/MDL-like validation, không phải
+claim tái tạo hoàn chỉnh.
 
 ---
 
@@ -787,7 +803,174 @@ C: Mutation + Feature
 
 ---
 
-# Phần 15 — Câu hỏi nghiên cứu mở
+# Phần 15 — Kết quả thí nghiệm Prototype
+
+## 15.1. Mục tiêu
+
+Pilot hiện tại chạy trực tiếp trên dataset crawling thật. Nó chưa nhằm khẳng
+định HMP-GSA tối ưu MDL tốt hơn HMP-SA paper-exact. Mục tiêu là kiểm tra pipeline
+dataset và xem guidance có tạo khác biệt ban đầu hay không:
+
+> Kiểm tra xem ba cách học memory A/B/C có tạo ra hành vi tìm kiếm khác nhau
+> khi cùng chạy trên một Guided-SA engine hay không.
+
+Vì vậy, runner dùng hai transaction database thật: `requirements.txt` và
+`themealdb.txt`. Synthetic landscapes vẫn được giữ trong source để regression,
+nhưng không còn được runner thực thi.
+
+## 15.2. Thiết lập thí nghiệm
+
+Các variant dùng chung:
+
+```text
+Số dataset         = 2
+Số variant          = 5
+Số random seed      = 3 (0 đến 2)
+Số iteration/run    = 30
+Candidate pool      = 5
+Temperature         = 2.0 giảm dần đến 0.01
+Objective           = lower score is better
+```
+
+Các variant được so sánh:
+
+```text
+unguided                 baseline, không học online
+prior_only               chỉ dùng prior tĩnh
+successful_feature       Variant A
+good_solution_frequency  Variant B
+mutation_feature         Variant C
+```
+
+Output được sinh bằng:
+
+```powershell
+python -m hmp_gsa.experiments.run --config hmp_gsa/configs/baseline.json
+```
+
+Kết quả chạy gần nhất nằm trong:
+
+```text
+results/20260915_132336/summary.csv
+```
+
+Mỗi ô trong bảng dưới đây là **mean best score** qua 10 seed. Vì objective cần
+minimize, số nhỏ hơn là tốt hơn.
+
+## 15.3. Kết quả chính
+
+| Dataset | Unguided | Prior-only | Variant A | Variant B | Variant C |
+|---|---:|---:|---:|---:|---:|
+| requirements | 1,143,091.33 | 1,125,641.00 | 1,125,641.00 | 1,125,641.00 | 1,125,641.00 |
+| themealdb | 233,516.00 | 229,647.33 | 229,647.33 | 229,647.33 | 229,647.33 |
+
+## 15.4. Giải thích kết quả
+
+### Kết quả 1 — Pilot thật đã chạy qua cả hai dataset
+
+Runner đã đọc hai file crawling, tạo adapter riêng cho từng dataset và ghi kết
+quả theo khóa `dataset`. Đây là khác biệt quan trọng so với experiment runner
+cũ vốn luôn tạo `SyntheticLandscape`.
+
+### Kết quả 2 — Chưa thấy khác biệt giữa các variant
+
+Sau khi sửa prior theo đúng pattern key, các phương pháp dùng prior tốt hơn
+`unguided` trên cả hai dataset. Tuy nhiên `prior_only` và ba variant online có
+cùng mean best score trong pilot 3 seed và 30 iteration.
+
+Điều này cho thấy static co-occurrence prior đang có tác dụng, nhưng budget
+ngắn chưa tạo đủ reinforcement để phân biệt A/B/C.
+
+### Kết quả 3 — Không được kết luận các variant tương đương nói chung
+
+Điểm cuối giống nhau không chứng minh rằng đường hội tụ, acceptance rate,
+runtime hoặc memory giống nhau. Các thí nghiệm tiếp theo cần đo:
+
+```text
+best score theo evaluation count
+số evaluation để đạt target
+acceptance rate
+variance giữa các seed
+```
+
+## 15.5. Kết luận được phép rút ra
+
+Từ thí nghiệm này, ta có thể kết luận:
+
+```text
+1. Engine có thực sự chạy được cả control và ba variant.
+2. Các variant tạo ra hành vi khác nhau trên objective phù hợp.
+3. Variant A có tín hiệu tích cực trên hai landscape.
+4. Guidance có thể gây hại trên landscape đánh lừa local signal.
+5. Việc giữ lại tính stochastic của SA vẫn cần thiết.
+```
+
+Nhưng chưa được kết luận:
+
+```text
+1. HMP-GSA tốt hơn HMP-SA trên dataset thật.
+2. Variant A là variant tốt nhất nói chung.
+3. Feature frequency luôn dự đoán được pattern MDL tốt.
+4. Kết quả synthetic là kết quả MDL.
+5. Python adapter hiện tại là bản tái tạo đầy đủ của HMP paper.
+```
+
+## 15.6. Liên hệ với pipeline HMP thật
+
+Repository còn có hai bằng chứng riêng biệt:
+
+### Java HMP-SA trên `iris.txt`
+
+Java reference đã sinh code table thật. Một run được ghi nhận có:
+
+```text
+Initial compression size = 24000 bits
+Final code table size    = 44
+Patterns from SA         = 13
+Final compression size  = 3690 bits
+Compression ratio        = 15.375%
+```
+
+Đây là kết quả của HMP-SA Java, không phải kết quả của các variant Python
+HMP-GSA.
+
+### Python dataset scan
+
+Python đã đọc dataset transaction và sinh:
+
+```text
+statistics.json
+item_frequency.csv
+cooccurrence.csv
+```
+
+Đây là preprocessing thật và pilot runner hiện đã chạy trên hai dataset
+crawling. Tuy nhiên nó chưa phải benchmark đối chứng Java paper-exact. Bản scan
+`accident.txt` hiện ghi nhận:
+
+```text
+Transactions (|D|) = 340,183
+Distinct items     = 468
+Average length     = 33.8079
+Density            = 7.2239%
+Observed pairs     = 46,815
+```
+
+Một kiểm tra runtime trực tiếp với `DatasetMDLAdapter` trên toàn bộ
+`accident.txt` cũng cho thấy giới hạn hiện tại: `_candidate_patterns()` đang
+sinh các tổ hợp từ từng transaction cho mỗi bước. Với dataset lớn như trên,
+việc này tăng rất nhanh và chưa trở thành một pipeline thực nghiệm thực dụng.
+Vì vậy hiện tại chỉ có thể khẳng định **real dataset scan + adapter prototype**,
+chưa thể khẳng định **real-dataset HMP-GSA search đã chạy hoàn chỉnh**.
+
+Bước tiếp theo là thay candidate generation bằng cơ chế tương thích với HMP,
+dùng sparse co-occurrence structure để giới hạn candidate, sau đó mới chạy
+cùng dataset, cùng state, cùng evaluator và cùng evaluation budget cho HMP-SA,
+prior-only và A/B/C.
+
+---
+
+# Phần 16 — Câu hỏi nghiên cứu mở
 
 Sau prototype, các câu hỏi quan trọng hơn mới được đặt ra:
 
@@ -804,7 +987,7 @@ Sau prototype, các câu hỏi quan trọng hơn mới được đặt ra:
 
 ---
 
-# Phần 16 — Định hướng nghiên cứu
+# Phần 17 — Định hướng nghiên cứu
 
 Do đó, HMP-GSA chưa nên được xem là một thuật toán hoàn chỉnh.
 

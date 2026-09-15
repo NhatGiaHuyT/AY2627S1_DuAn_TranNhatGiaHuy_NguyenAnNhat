@@ -4,7 +4,7 @@ from typing import Mapping
 
 # Canonical engine settings. `configs/baseline.json` must use these keys.
 DEFAULT_SEARCH = {
-    "iterations": 500,
+    "iterations": 30,
     "candidate_pool_size": 5,
     "temperature_start": 2.0,
     "temperature_end": 0.01,

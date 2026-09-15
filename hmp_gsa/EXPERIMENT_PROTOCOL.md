@@ -30,8 +30,9 @@ Controls, also run through `HMPGSA`:
 - `unguided`: uniform sampling, no memory
 - `prior_only`: static adapter prior, no online updates
 
-Neighborhood sampling is `SubsetSelectionAdapter` for both `hmp_gsa.demo`
-and `experiments`. Engine kwargs come from `hmp_gsa.settings`.
+The experiment runner uses `DatasetMDLAdapter` and indexed dataset candidates.
+Synthetic landscapes remain available as reference code but are not executed by
+the runner. Engine kwargs come from `hmp_gsa.settings`.
 
 ## Primary measurements
 
@@ -46,13 +47,15 @@ and `experiments`. Engine kwargs come from `hmp_gsa.settings`.
 Raw weight magnitudes are not directly comparable across A/B/C because the
 update semantics differ.
 
-The synthetic landscapes are deliberately controlled thought experiments.
-They do not establish an HMP/MDL result.
+The configured experiments use real transaction datasets and the repository's
+MDL-like adapter. They are not yet a paper-exact HMP implementation: candidate
+sizes, candidate cap, and residual/code-table cost must be reported with every
+result. Synthetic landscapes are retained only for isolated regression tests.
 
 ## Transition to HMP
 
-After the hypotheses are understood:
-1. wrap the real HMP code behind the same interface;
+For paper-faithful comparison:
+1. replace the MDL-like adapter with the exact HMP code-table state;
 2. keep A/B/C unchanged;
 3. compare against HMP-SA under identical budgets;
 4. then measure runtime and memory.
