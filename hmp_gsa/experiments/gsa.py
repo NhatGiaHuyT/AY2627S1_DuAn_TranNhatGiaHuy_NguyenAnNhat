@@ -1,12 +1,10 @@
 try:
     from modules.models import SearchResult
-    from modules.control_group import UnguidedGSA, PriorOnlyGSA
-    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA, UnguidedGSA, PriorOnlyGSA
     from configs.settings import engine_kwargs
 except ModuleNotFoundError:  # pragma: no cover - legacy import mode
     from modules.models import SearchResult
-    from modules.control_group import UnguidedGSA, PriorOnlyGSA
-    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA
+    from modules.variants import SuccessfulFeatureGSA, GoodSolutionFrequencyGSA, MutationFeatureGSA, UnguidedGSA, PriorOnlyGSA
     from configs.settings import engine_kwargs
 
 
@@ -17,7 +15,3 @@ VARIANTS = {
     GoodSolutionFrequencyGSA.name: GoodSolutionFrequencyGSA,
     MutationFeatureGSA.name: MutationFeatureGSA,
 }
-
-
-def run_search(adapter, variant_cls, seed, search, guidance) -> SearchResult:
-    return variant_cls(adapter, **engine_kwargs(search, guidance, seed)).run()

@@ -1,0 +1,16 @@
+dataset,variant,seed,best_score
+themealdb,unguided,0,211163.0
+themealdb,unguided,1,215294.0
+themealdb,unguided,2,214608.0
+themealdb,prior_only,0,171880.0
+themealdb,prior_only,1,178543.0
+themealdb,prior_only,2,186870.0
+themealdb,successful_feature,0,168756.0
+themealdb,successful_feature,1,178363.0
+themealdb,successful_feature,2,187230.0
+themealdb,good_solution_frequency,0,174600.0
+themealdb,good_solution_frequency,1,169504.0
+themealdb,good_solution_frequency,2,178533.0
+themealdb,mutation_feature,0,182439.0
+themealdb,mutation_feature,1,173433.0
+themealdb,mutation_feature,2,179334.0

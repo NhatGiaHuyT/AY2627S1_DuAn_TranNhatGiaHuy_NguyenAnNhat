@@ -25,7 +25,7 @@
     "good_solution_frequency",
     "mutation_feature"
   ],
-  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "seeds": [0, 1, 2],
   "search": {
     "iterations": 1000,
     "candidate_pool_size": 5,
@@ -38,5 +38,8 @@
     "decay": 0.01,
     "prior": 1.0,
     "epsilon": 1e-9
+  },
+  "parallel": {
+    "max_workers": 4
   }
 }

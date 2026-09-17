@@ -1,0 +1,16 @@
+dataset,variant,seed,best_score
+requirements,unguided,0,1136555.0
+requirements,unguided,1,1148223.0
+requirements,unguided,2,1137803.0
+requirements,prior_only,0,964402.0
+requirements,prior_only,1,1041811.0
+requirements,prior_only,2,1021281.0
+requirements,successful_feature,0,987880.0
+requirements,successful_feature,1,1034925.0
+requirements,successful_feature,2,1025212.0
+requirements,good_solution_frequency,0,984514.0
+requirements,good_solution_frequency,1,1010287.0
+requirements,good_solution_frequency,2,1014520.0
+requirements,mutation_feature,0,1052872.0
+requirements,mutation_feature,1,1002741.0
+requirements,mutation_feature,2,1015178.0

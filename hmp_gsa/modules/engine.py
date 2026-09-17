@@ -1,27 +1,21 @@
 from abc import ABC, abstractmethod
 from random import Random
-from math import exp
-from typing import Any, Mapping, Optional
+from typing import Generic, Mapping, TypeVar
 
-from .adapter import GSAAdapter
-from .models import Feature, GuidanceKey, Move, StepRecord, SearchResult
 
-class HMPGSA(ABC):
-    """Shared Guided-SA engine.
+State = TypeVar("State")
+Move = TypeVar("Move")
+Feature = TypeVar("Feature")
+GuidanceKey = TypeVar("GuidanceKey")
 
-    Variants only define:
-      - what key represents memory
-      - how a key is initialized from the HMP prior
-      - how a successful search event updates memory
-      - how a good solution updates memory
 
-    The SA acceptance rule and stochastic candidate selection are identical
-    across variants.
-    """
+class HMPGSA(
+    ABC,
+    Generic[State, Move, Feature, GuidanceKey],
+):
 
     def __init__(
         self,
-        adapter: GSAAdapter,
         *,
         iterations: int = 10_000,
         temperature_start: float = 10.0,
@@ -33,215 +27,390 @@ class HMPGSA(ABC):
         seed: int = 0,
         epsilon: float = 1e-9,
     ):
-        self.adapter = adapter
         self.iterations = iterations
         self.temperature_start = temperature_start
         self.temperature_end = temperature_end
         self.candidate_pool_size = candidate_pool_size
+
         self.alpha = alpha
         self.decay = decay
         self.elite_fraction = elite_fraction
-        self.rng = Random(seed)
+        self.seed = seed
         self.epsilon = epsilon
 
         self.weights: dict[GuidanceKey, float] = {}
         self._seen_scores: list[float] = []
 
-    # ---------- temperature / SA ----------
+    # ------------------------------------------------------------------
+    # SA
+    # ------------------------------------------------------------------
 
-    def temperature(self, iteration: int) -> float:
+    def temperature(
+        self,
+        iteration: int,
+    ) -> float:
         if self.iterations <= 1:
             return self.temperature_end
-        ratio = iteration / (self.iterations - 1)
-        # Log-linear cooling avoids negative temperatures and gives both
-        # endpoints exactly.
-        return self.temperature_start * (
-            self.temperature_end / self.temperature_start
-        ) ** ratio
 
-    def accept(self, delta: float, temperature: float) -> bool:
-        if delta <= 0:
+        progress = iteration / (self.iterations - 1)
+
+        return (
+            self.temperature_start
+            + progress
+            * (
+                self.temperature_end
+                - self.temperature_start
+            )
+        )
+
+    def accept(
+        self,
+        old_score: float,
+        new_score: float,
+        temperature: float,
+        rng: Random,
+    ) -> bool:
+        if new_score < old_score:
             return True
-        return self.rng.random() < exp(-delta / max(temperature, self.epsilon))
 
-    # ---------- guidance ----------
+        if temperature <= 0.0:
+            return False
+
+        import math
+
+        probability = math.exp(
+            -(new_score - old_score)
+            / temperature
+        )
+
+        return rng.random() < probability
+
+    # ------------------------------------------------------------------
+    # Guidance key
+    # ------------------------------------------------------------------
 
     @abstractmethod
-    def key_for_move(self, move: Move) -> GuidanceKey:
+    def key_for_move(
+        self,
+        state: State,
+        move: Move,
+    ) -> GuidanceKey:
+        """
+        Convert a move into the key used by the
+        guidance memory.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def initial_weight(self, key: GuidanceKey, prior: Mapping[Feature, float]) -> float:
+    def prior_feature_for_key(
+        self,
+        key: GuidanceKey,
+    ) -> Feature:
+        """
+        Map a guidance key back to the feature used
+        by the common HMP initial prior.
+        """
         raise NotImplementedError
 
+    # ------------------------------------------------------------------
+    # Initial memory
+    # ------------------------------------------------------------------
+
+    def _initial_weight(
+        self,
+        key: GuidanceKey,
+        prior: Mapping[Feature, float],
+    ) -> float:
+
+        feature = self.prior_feature_for_key(key)
+
+        return max(
+            self.epsilon,
+            float(
+                prior.get(
+                    feature,
+                    self.epsilon,
+                )
+            ),
+        )
+
+    def _ensure_weight(
+        self,
+        key: GuidanceKey,
+        prior: Mapping[Feature, float],
+    ) -> float:
+
+        if key not in self.weights:
+            self.weights[key] = self._initial_weight(
+                key,
+                prior,
+            )
+
+        return self.weights[key]
+
+    # ------------------------------------------------------------------
+    # Reinforcement
+    # ------------------------------------------------------------------
+
+    def _reinforce(
+        self,
+        key: GuidanceKey,
+        amount: float,
+        prior: Mapping[Feature, float],
+    ) -> None:
+
+        self._ensure_weight(
+            key,
+            prior,
+        )
+
+        self.weights[key] += amount
+
+    # ------------------------------------------------------------------
+    # Candidate weighting
+    # ------------------------------------------------------------------
+
+    def _candidate_weight(
+        self,
+        state: State,
+        move: Move,
+        prior: Mapping[Feature, float],
+    ) -> tuple[GuidanceKey, float]:
+
+        key = self.key_for_move(
+            state,
+            move,
+        )
+
+        weight = self._ensure_weight(
+            key,
+            prior,
+        )
+
+        return key, weight
+
+    def sample_weighted_move(
+        self,
+        state: State,
+        candidates: list[Move],
+        prior: Mapping[Feature, float],
+        rng: Random,
+    ) -> Move:
+
+        if not candidates:
+            raise ValueError(
+                "Candidate pool cannot be empty."
+            )
+
+        weighted_candidates = []
+
+        for move in candidates:
+            key, weight = self._candidate_weight(
+                state,
+                move,
+                prior,
+            )
+
+            weighted_candidates.append(
+                (move, weight)
+            )
+
+        total = sum(
+            weight
+            for _, weight in weighted_candidates
+        )
+
+        if total <= 0.0:
+            return rng.choice(candidates)
+
+        moves = [
+            move
+            for move, _ in weighted_candidates
+        ]
+
+        weights = [
+            weight
+            for _, weight in weighted_candidates
+        ]
+
+        return rng.choices(
+            moves,
+            weights=weights,
+            k=1,
+        )[0]
+
+    # ------------------------------------------------------------------
+    # Forgetting
+    # ------------------------------------------------------------------
+
+    def decay_weights(self) -> None:
+
+        for key in self.weights:
+            self.weights[key] *= (
+                1.0 - self.decay
+            )
+
+            # Keep the key alive.
+            #
+            # If we deleted it, encountering it again would
+            # reinitialize it from W0 and therefore undo forgetting.
+            self.weights[key] = max(
+                self.epsilon,
+                self.weights[key],
+            )
+
+    # ------------------------------------------------------------------
+    # Learning hooks
+    # ------------------------------------------------------------------
+
+    @abstractmethod
     def update_memory(
         self,
         *,
+        state_before: State,
+        state_after: State,
         move: Move,
         old_score: float,
         new_score: float,
         accepted: bool,
-        state_before: Any,
-        state_after: Any,
+        prior: Mapping[Feature, float],
     ) -> None:
-        """Variant hook. Base implementation does nothing."""
-        return None
+        raise NotImplementedError
 
     def update_good_solution_memory(
         self,
         *,
-        state: Any,
+        state: State,
         score: float,
-        elite_threshold: Optional[float],
+        threshold: float | None,
+        prior: Mapping[Feature, float],
+        adapter,
     ) -> None:
-        """Variant hook. Base implementation does nothing."""
-        return None
+        pass
 
-    def decay_weights(self) -> None:
-        if self.decay <= 0:
-            return
-        factor = max(0.0, 1.0 - self.decay)
-        for key in list(self.weights):
-            self.weights[key] *= factor
-            if self.weights[key] < self.epsilon:
-                del self.weights[key]
+    # ------------------------------------------------------------------
+    # Elite threshold
+    # ------------------------------------------------------------------
 
-    def _ensure_weight(self, key: GuidanceKey, prior: Mapping[Feature, float]) -> float:
-        if key not in self.weights:
-            self.weights[key] = max(
-                self.epsilon, float(self.initial_weight(key, prior))
-            )
-        return self.weights[key]
+    def _elite_threshold(self) -> float | None:
 
-    def _candidate_weight(
-        self,
-        move: Move,
-        state: Any,
-        prior: Mapping[Feature, float],
-    ) -> float:
-        key = self.key_for_move(move)
-        memory_weight = self._ensure_weight(key, prior)
-        dynamic_prior_weight = self.adapter.prior_weight(state, move, prior)
-        return max(self.epsilon, memory_weight * float(dynamic_prior_weight))
-
-    def sample_weighted_move(
-        self,
-        moves: list[Move],
-        state: Any,
-        prior: Mapping[Feature, float],
-    ) -> tuple[Move, float, GuidanceKey]:
-        if not moves:
-            raise ValueError("Adapter returned an empty candidate pool.")
-
-        keys = [self.key_for_move(m) for m in moves]
-        weights = [self._candidate_weight(move, state, prior) for move in moves]
-        total = sum(weights)
-
-        if total <= 0:
-            # Defensive fallback. This should only occur with malformed priors.
-            index = self.rng.randrange(len(moves))
-            return moves[index], 1.0 / len(moves), keys[index]
-
-        r = self.rng.random() * total
-        cumulative = 0.0
-        for move, key, weight in zip(moves, keys, weights):
-            cumulative += weight
-            if r <= cumulative:
-                return move, weight / total, key
-
-        return moves[-1], weights[-1] / total, keys[-1]
-
-
-    def run(self) -> SearchResult:
-        state = self.adapter.initial_state()
-        current_score = self.adapter.evaluate(state)
-        evaluations = 1
-
-        best_state = state
-        best_score = current_score
-        history: list[StepRecord] = []
-        prior = self.adapter.initial_prior()
-
-        # Used only for the "good solution" threshold. We do not store states.
-        self._seen_scores = [current_score]
-
-        for iteration in range(self.iterations):
-            temperature = self.temperature(iteration)
-
-            moves = list(
-                self.adapter.sample_moves(
-                    state, self.rng, self.candidate_pool_size
-                )
-            )
-            if not moves:
-                continue
-
-            move, sampled_probability, key = self.sample_weighted_move(
-                moves, state, prior
-            )
-            candidate = self.adapter.apply_move(state, move)
-            candidate_score = self.adapter.evaluate(candidate)
-            evaluations += 1
-
-            delta = candidate_score - current_score
-            accepted = self.accept(delta, temperature)
-
-            old_state = state
-            if accepted:
-                state = candidate
-                current_score = candidate_score
-
-            if candidate_score < best_score:
-                best_score = candidate_score
-                best_state = candidate
-
-            # Store scores, not states. This keeps historical memory small.
-            self._seen_scores.append(candidate_score)
-
-            elite_threshold = self._elite_threshold()
-            self.update_memory(
-                move=move,
-                old_score=current_score if not accepted else current_score - delta,
-                new_score=candidate_score,
-                accepted=accepted,
-                state_before=old_state,
-                state_after=candidate,
-            )
-            self.update_good_solution_memory(
-                state=candidate if candidate_score <= current_score else state,
-                score=candidate_score,
-                elite_threshold=elite_threshold,
-            )
-            self.decay_weights()
-
-            history.append(
-                StepRecord(
-                    iteration=iteration,
-                    current_score=current_score,
-                    candidate_score=candidate_score,
-                    best_score=best_score,
-                    accepted=accepted,
-                    temperature=temperature,
-                    move=move,
-                    sampled_probability=sampled_probability,
-                    guidance_key=key,
-                )
-            )
-
-        return SearchResult(
-            best_state=best_state,
-            best_score=best_score,
-            history=history,
-            weights=dict(self.weights),
-            evaluations=evaluations,
-        )
-
-    def _elite_threshold(self) -> Optional[float]:
         if not self._seen_scores:
             return None
-        values = sorted(self._seen_scores)
-        index = min(
-            len(values) - 1,
-            max(0, int(len(values) * self.elite_fraction)),
+
+        ordered = sorted(
+            self._seen_scores
         )
-        return values[index]
+
+        index = int(
+            len(ordered)
+            * self.elite_fraction
+        )
+
+        index = min(
+            index,
+            len(ordered) - 1,
+        )
+
+        return ordered[index]
+
+    # ------------------------------------------------------------------
+    # Main search
+    # ------------------------------------------------------------------
+
+    def run(
+        self,
+        adapter,
+    ):
+
+        rng = Random(self.seed)
+
+        prior = adapter.initial_prior()
+
+        self.weights.clear()
+        self._seen_scores.clear()
+
+        state = adapter.initial_state()
+        score = adapter.evaluate(state)
+
+        best_state = state
+        best_score = score
+
+        for iteration in range(
+            self.iterations
+        ):
+
+            temperature = self.temperature(
+                iteration
+            )
+
+            candidates = list(
+                adapter.sample_moves(
+                    state,
+                    rng,
+                    self.candidate_pool_size,
+                )
+            )
+
+            if not candidates:
+                raise RuntimeError(
+                    "Adapter returned an empty candidate pool."
+                )
+
+            move = self.sample_weighted_move(
+                state,
+                candidates,
+                prior,
+                rng,
+            )
+
+            state_before = state
+            old_score = score
+
+            state_after = adapter.apply_move(
+                state_before,
+                move,
+            )
+
+            new_score = adapter.evaluate(
+                state_after
+            )
+
+            accepted = self.accept(
+                old_score,
+                new_score,
+                temperature,
+                rng,
+            )
+
+            if accepted:
+                state = state_after
+                score = new_score
+
+            if score < best_score:
+                best_state = state
+                best_score = score
+
+            # Record the score of the actual current state.
+            self._seen_scores.append(score)
+
+            self.update_memory(
+                state_before=state_before,
+                state_after=state_after,
+                move=move,
+                old_score=old_score,
+                new_score=new_score,
+                accepted=accepted,
+                prior=prior,
+            )
+
+            self.update_good_solution_memory(
+                state=state,
+                score=score,
+                threshold=self._elite_threshold(),
+                prior=prior,
+                adapter=adapter,
+            )
+
+            self.decay_weights()
+
+        return best_state, best_score

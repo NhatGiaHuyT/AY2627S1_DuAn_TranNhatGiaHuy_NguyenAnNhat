@@ -1,113 +1,190 @@
-from typing import Mapping, Any, Optional
-
 from .engine import HMPGSA
-from .models import Feature, GuidanceKey, Move
+
+
+def _quality(score, threshold):
+    """Quality factor: 0.0 to 1.0.
+
+    1.0 = best possible (score much below threshold).
+    0.0 = barely elite (score at threshold) or not elite.
+    """
+    if threshold is None:
+        return 1.0
+    if score > threshold:
+        return 0.0
+    delta = threshold - score
+    scale = max(abs(threshold), 1.0)
+    return min(1.0, delta / scale)
+
+
+class UnguidedGSA(HMPGSA):
+
+    name = "unguided"
+
+    def key_for_move(self, state, move):
+        return None
+
+    def prior_feature_for_key(self, key):
+        return None
+
+    def _candidate_weight(self, state, move, prior):
+        return None, 1.0
+
+    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+        pass
+
+    def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
+        pass
+
+    def decay_weights(self):
+        pass
+
+
+class PriorOnlyGSA(HMPGSA):
+    name = "prior_only"
+
+    def key_for_move(self, state, move):
+        return move.feature
+
+    def prior_feature_for_key(self, key):
+        return key
+
+    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+        pass
+
+    def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
+        pass
+
+    def decay_weights(self):
+        pass
+
 
 class SuccessfulFeatureGSA(HMPGSA):
-    """Hypothesis A.
-
-    Memory key:
-        feature
-
-    Reinforcement:
-        improving accepted mutation => feature weight += alpha * improvement
-
-    This is intentionally strict: only an accepted move with negative delta
-    reinforces the feature.
-    """
     name = "successful_feature"
 
-    def key_for_move(self, move: Move) -> GuidanceKey:
-        return self.adapter.feature_of_move(move)
+    def key_for_move(self, state, move):
+        return move.feature
 
-    def initial_weight(self, key: GuidanceKey, prior: Mapping[Feature, float]) -> float:
-        return float(prior.get(key, 1.0))
+    def prior_feature_for_key(self, key):
+        return key
 
     def update_memory(
         self,
         *,
-        move: Move,
-        old_score: float,
-        new_score: float,
-        accepted: bool,
-        state_before: Any,
-        state_after: Any,
-    ) -> None:
+        state_before,
+        state_after,
+        move,
+        old_score,
+        new_score,
+        accepted,
+        prior,
+    ):
+        if not accepted:
+            return
+
         delta = new_score - old_score
-        if accepted and delta < 0:
-            key = self.key_for_move(move)
-            self.weights[key] = self.weights.get(key, 1.0) + self.alpha * abs(delta)
 
-class GoodSolutionFrequencyGSA(HMPGSA):
-    """Hypothesis B.
+        if delta >= 0:
+            return
 
-    Memory key:
-        feature
+        key = self.key_for_move(
+            state_before,
+            move,
+        )
 
-    Reinforcement:
-        when a candidate is in the elite/good set, every feature present in
-        that candidate receives a small reinforcement.
-
-    The prototype uses a quantile-like threshold over observed scores.
-    """
-    name = "good_solution_frequency"
-    def key_for_move(self, move: Move) -> GuidanceKey:
-        return self.adapter.feature_of_move(move)
-
-    def initial_weight(self, key: GuidanceKey, prior: Mapping[Feature, float]) -> float:
-        return float(prior.get(key, 1.0))
+        self._reinforce(
+            key,
+            self.alpha * abs(delta),
+            prior,
+        )
 
     def update_good_solution_memory(
         self,
         *,
-        state: Any,
-        score: float,
-        elite_threshold: Optional[float],
-    ) -> None:
-        if elite_threshold is None or score > elite_threshold:
-            return
+        state,
+        score,
+        threshold,
+        prior,
+        adapter,
+    ):
+        pass
 
-        for feature in self.adapter.features_of(state):
-            self.weights[feature] = self.weights.get(feature, 1.0) + self.alpha
+
+class GoodSolutionFrequencyGSA(HMPGSA):
+    name = "good_solution_frequency"
+
+    def key_for_move(self, state, move):
+        return move.feature
+
+    def prior_feature_for_key(self, key):
+        return key
+
+    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+        pass
+
+    def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
+        q = _quality(score, threshold)
+        if q <= 0.0:
+            return
+        for feature in adapter.features_of(state):
+            self._reinforce(feature, self.alpha * q, prior)
+
+    def decay_weights(self):
+        for key in self.weights:
+            self.weights[key] *= (1.0 - self.decay)
+            self.weights[key] = max(self.epsilon, self.weights[key])
+
 
 class MutationFeatureGSA(HMPGSA):
-    """Hypothesis C.
 
-    Memory key:
-        (operation, feature)
-
-    Reinforcement:
-        accepted improving mutation => reinforce the exact operation-feature
-        combination.
-
-    This distinguishes:
-        ADD X
-    from:
-        REMOVE X
-    """
     name = "mutation_feature"
 
-    def key_for_move(self, move: Move) -> GuidanceKey:
+    def key_for_move(self, state, move):
         return (
-            self.adapter.operation_of_move(move),
-            self.adapter.feature_of_move(move),
+            move.operation,
+            move.feature,
         )
 
-    def initial_weight(self, key: GuidanceKey, prior: Mapping[Feature, float]) -> float:
+    def prior_feature_for_key(self, key):
         _, feature = key
-        return float(prior.get(feature, 1.0))
+        return feature
 
     def update_memory(
         self,
         *,
-        move: Move,
-        old_score: float,
-        new_score: float,
-        accepted: bool,
-        state_before: Any,
-        state_after: Any,
-    ) -> None:
+        state_before,
+        state_after,
+        move,
+        old_score,
+        new_score,
+        accepted,
+        prior,
+    ):
+        if not accepted:
+            return
+
         delta = new_score - old_score
-        if accepted and delta < 0:
-            key = self.key_for_move(move)
-            self.weights[key] = self.weights.get(key, 1.0) + self.alpha * abs(delta)
+
+        if delta >= 0:
+            return
+
+        key = self.key_for_move(
+            state_before,
+            move,
+        )
+
+        self._reinforce(
+            key,
+            self.alpha * abs(delta),
+            prior,
+        )
+
+    def update_good_solution_memory(
+        self,
+        *,
+        state,
+        score,
+        threshold,
+        prior,
+        adapter,
+    ):
+        pass
