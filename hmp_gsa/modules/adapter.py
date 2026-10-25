@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Mapping
 from random import Random
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .models import Feature, Move
 
 
 class GSAAdapter(ABC):
-
     @abstractmethod
     def initial_state(self) -> Any:
         raise NotImplementedError

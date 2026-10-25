@@ -1,16 +1,26 @@
 # AY2627S1_DuAn_TranNhatGiaHuy_NguyenAnNhat
-Dự án CNTT HK1 năm 2025-2026:
 
-Week 1:
-- Lên kế hoạch bản nháp architecture của dự án (Lưu ý: thô, sai cũng ddc)
-  Nhật: Data
-  Huy: Thuật toán
+Dự án CNTT HK1 năm 2025-2026.
 
-Week 2: 
-- Huy: Chọn hướng tiếp cận SA và phát triển lên GSA 
-- Nhật: Thu thâp dữ liệu. Implement code thăm dò các chỉ số thống kê cơ bản của bộ dữ liệu. 
+## Hướng dẫn chạy code (hmp_gsa)
 
-Week 3: 
-- Huy: Implement thuật toán GSA 
-- Nhật: Implement thuật toán SA 
+### Yêu cầu
 
+- Python >= 3.9
+- Chạy từ thư mục gốc dự án (chứa thư mục `hmp_gsa/`)
+
+### Cài đặt
+
+```powershell
+pip install -e ./hmp_gsa
+```
+
+### Chạy thí nghiệm
+
+Chỉnh sửa config trong `hmp_gsa/configs/` (ví dụ `baseline.json` hoặc `real_data_500.json`), sau đó chạy:
+
+```powershell
+python -m hmp_gsa.experiments.run --config hmp_gsa/configs/baseline.json
+```
+
+Kết quả được ghi vào `results/<timestamp>/` (file `runs.csv` và `summary.csv`).

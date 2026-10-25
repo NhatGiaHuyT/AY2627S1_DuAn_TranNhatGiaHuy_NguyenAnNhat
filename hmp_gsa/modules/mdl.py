@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
-from math import ceil, log2
-from random import Random
 from itertools import combinations
+from math import ceil, log2
 from pathlib import Path
-from typing import Mapping
+from random import Random
 
 from .adapter import GSAAdapter
 from .models import Feature, Move
@@ -22,16 +22,12 @@ class MDLState:
     def with_pattern(
         self,
         pattern: tuple[int, ...],
-    ) -> "MDLState":
+    ) -> MDLState:
         code_table = set(self.code_table)
         code_table.add(tuple(pattern))
 
         residual = tuple(
-            tuple(
-                item
-                for item in transaction
-                if item not in set(pattern)
-            )
+            tuple(item for item in transaction if item not in set(pattern))
             for transaction in self.residual or ()
         )
 
@@ -40,21 +36,7 @@ class MDLState:
             residual,
         )
 
-
 class DatasetMDLAdapter(GSAAdapter):
-    """
-    MDL-style adapter for the HMP-GSA experiments.
-
-    Dataset-derived prior:
-        - singleton feature  -> item frequency
-        - pair feature       -> pairwise co-occurrence
-
-    The resulting prior is the SAME W₀ supplied to every guided variant.
-
-    GSA variants differ only in how they subsequently update W during
-    the search trajectory.
-    """
-
     def __init__(
         self,
         transactions,
@@ -62,93 +44,70 @@ class DatasetMDLAdapter(GSAAdapter):
         cooccurrence_path: str | Path,
         max_pattern_size: int = 3,
         prior_multiplier: float = 1.0,
-        candidate_sizes: tuple[int, ...] = (1, 2),
         max_candidates: int = 10000,
         move_operations: tuple[str, ...] = ("add",),
     ):
-        self.transactions = tuple(
-            tuple(sorted(set(t)))
-            for t in transactions
-        )
+        self.transactions = tuple(tuple(sorted(set(t))) for t in transactions)
 
-        self._transaction_sets = tuple(
-            frozenset(tx)
-            for tx in self.transactions
-        )
+        self._transaction_sets = tuple(frozenset(tx) for tx in self.transactions)
 
         self.max_pattern_size = max_pattern_size
         self.prior_multiplier = prior_multiplier
-        self.candidate_sizes = tuple(
-            sorted(set(candidate_sizes))
-        )
+        self.candidate_sizes = tuple(range(1, self.max_pattern_size + 1))
         self.max_candidates = max_candidates
-        self.move_operations = tuple(
-            dict.fromkeys(move_operations)
-        )
+        self.move_operations = tuple(dict.fromkeys(move_operations))
 
         self._all_items = tuple(
-            sorted(
-                {
-                    item
-                    for tx in self.transactions
-                    for item in tx
-                }
-            )
+            sorted({item for tx in self.transactions for item in tx})
         )
 
         self._item_bits = {
-            item: 1 << index
-            for index, item in enumerate(
-                self._all_items
-            )
+            item: 1 << index for index, item in enumerate(self._all_items)
         }
 
         self._transaction_masks = tuple(
-            sum(
-                self._item_bits[item]
-                for item in transaction
-            )
+            sum(self._item_bits[item] for item in transaction)
             for transaction in self.transactions
         )
 
         # ----------------------------------------------------------
         # Candidate/support statistics
         # ----------------------------------------------------------
-
         self._support = Counter()
+        min_support_count = max(1, int(len(self.transactions) * 0.005))
 
-        for tx in self.transactions:
+        MAX_EXACT_SIZE = 2
+
+        for idx, tx in enumerate(self.transactions):
             for size in self.candidate_sizes:
-                if (
-                    size > self.max_pattern_size
-                    or size > len(tx)
-                ):
+                if size > len(tx):
                     continue
-
+                if size > MAX_EXACT_SIZE:
+                    continue
                 for pattern in combinations(tx, size):
-                    self._support[
-                        tuple(sorted(pattern))
-                    ] += 1
+                    self._support[tuple(sorted(pattern))] += 1
 
-        # ----------------------------------------------------------
-        # Dataset prior
-        #
-        # This is W₀.
-        #
-        # It comes from the preprocessing artifacts rather than
-        # from the MDL search trajectory.
-        # ----------------------------------------------------------
+            # Cứ sau 100 dòng transaction, tự động xóa các pattern rác (tần suất = 1) để giải phóng RAM
+            if idx % 100 == 0 and self.max_pattern_size > 2:
+                self._support = Counter(
+                    {k: v for k, v in self._support.items() if v > 1 or len(k) == 1}
+                )
+
+        # Lọc cuối cùng theo đúng chuẩn min_support ban đầu của bạn
+        self._support = Counter(
+            {
+                k: v
+                for k, v in self._support.items()
+                if v >= min_support_count or len(k) == 1
+            }
+        )
 
         (
             self._item_frequency,
             self._pair_cooccurrence,
-        ) = self._load_cooccurrence_prior(
-            cooccurrence_path
-        )
+        ) = self._load_cooccurrence_prior(cooccurrence_path)
 
-        self._pattern_prior = (
-            self._build_pattern_prior()
-        )
+        self._pattern_prior = self._build_pattern_prior()
 
         self._score_cache: dict[
             frozenset[tuple[int, ...]],
@@ -180,17 +139,11 @@ class DatasetMDLAdapter(GSAAdapter):
         base_path = Path(path)
 
         if base_path.is_dir():
-            item_frequency_path = (
-                base_path / "item_frequency.csv"
-            )
-            cooccurrence_path = (
-                base_path / "cooccurrence.csv"
-            )
+            item_frequency_path = base_path / "item_frequency.csv"
+            cooccurrence_path = base_path / "cooccurrence.csv"
         else:
             cooccurrence_path = base_path
-            item_frequency_path = (
-                base_path.parent / "item_frequency.csv"
-            )
+            item_frequency_path = base_path.parent / "item_frequency.csv"
 
         item_frequency: dict[int, float] = {}
 
@@ -203,9 +156,7 @@ class DatasetMDLAdapter(GSAAdapter):
 
             for row in reader:
                 item = int(row["item"])
-                frequency = float(
-                    row["frequency"]
-                )
+                frequency = float(row["frequency"])
 
                 item_frequency[item] = frequency
 
@@ -225,13 +176,9 @@ class DatasetMDLAdapter(GSAAdapter):
                 i = int(row["item_i"])
                 j = int(row["item_j"])
 
-                pair = tuple(
-                    sorted((i, j))
-                )
+                pair = tuple(sorted((i, j)))
 
-                pair_cooccurrence[pair] = float(
-                    row["cooccurrence"]
-                )
+                pair_cooccurrence[pair] = float(row["cooccurrence"])
 
         return (
             item_frequency,
@@ -285,10 +232,7 @@ class DatasetMDLAdapter(GSAAdapter):
                 # pairwise values.
                 continue
 
-            prior[pattern] = (
-                float(value)
-                * self.prior_multiplier
-            )
+            prior[pattern] = float(value) * self.prior_multiplier
 
         return prior
 
@@ -324,46 +268,47 @@ class DatasetMDLAdapter(GSAAdapter):
         rng: Random,
         pool_size: int,
     ):
-        all_addable = [
-            pattern
-            for pattern in self._support
-            if pattern not in state.code_table
-        ]
-
-        if len(all_addable) > self.max_candidates:
-            available_adds = rng.sample(
-                all_addable,
-                self.max_candidates,
-            )
-        else:
-            available_adds = all_addable
-
         candidates = []
+        addable = set()
 
         if "add" in self.move_operations:
-            candidates.extend(
-                Move("add", pattern)
-                for pattern in available_adds
+            num_sample = min(
+                len(self.transactions),
+                self.max_candidates * 2,
             )
+            sampled_indices = rng.sample(
+                range(len(self.transactions)),
+                num_sample,
+            )
+
+            for tx_idx in sampled_indices:
+                tx = self.transactions[tx_idx]
+                for size in self.candidate_sizes:
+                    if size > len(tx):
+                        continue
+                    for pattern in combinations(tx, size):
+                        pattern = tuple(sorted(pattern))
+                        if pattern not in state.code_table:
+                            addable.add(pattern)
+                            if len(addable) >= self.max_candidates:
+                                break
+                    if len(addable) >= self.max_candidates:
+                        break
+                if len(addable) >= self.max_candidates:
+                    break
+
+            candidates.extend(Move("add", pattern) for pattern in addable)
 
         if "remove" in self.move_operations:
-            candidates.extend(
-                Move("remove", pattern)
-                for pattern in state.code_table
-            )
+            candidates.extend(Move("remove", pattern) for pattern in state.code_table)
 
-        if (
-            "replace" in self.move_operations
-            and state.code_table
-        ):
-            for new_pattern in available_adds:
+        if "replace" in self.move_operations and state.code_table:
+            for new_pattern in addable:
                 candidates.append(
                     Move(
                         "replace",
                         new_pattern,
-                        payload=tuple(
-                            state.code_table
-                        ),
+                        payload=tuple(state.code_table),
                     )
                 )
 
@@ -386,34 +331,22 @@ class DatasetMDLAdapter(GSAAdapter):
         self,
         state: MDLState,
     ):
-        return [
-            pattern
-            for pattern, support in self._support.items()
-            if support > 0
-        ]
+        return [pattern for pattern, support in self._support.items() if support > 0]
 
     def _pattern_support(
         self,
         pattern: tuple[int, ...],
         transactions,
     ) -> int:
-        indexed = self._support.get(
-            tuple(sorted(pattern))
-        )
+        indexed = self._support.get(tuple(sorted(pattern)))
 
-        if (
-            transactions is self.transactions
-            and indexed is not None
-        ):
+        if transactions is self.transactions and indexed is not None:
             return indexed
 
         count = 0
 
         for tx in transactions:
-            if all(
-                item in tx
-                for item in pattern
-            ):
+            if all(item in tx for item in pattern):
                 count += 1
 
         return count
@@ -427,19 +360,12 @@ class DatasetMDLAdapter(GSAAdapter):
         state: MDLState,
         move: Move,
     ) -> MDLState:
-        pattern = tuple(
-            sorted(move.feature)
-        )
+        pattern = tuple(sorted(move.feature))
 
-        new_table = set(
-            state.code_table
-        )
+        new_table = set(state.code_table)
 
         if move.operation == "add":
-            if (
-                not pattern
-                or pattern in new_table
-            ):
+            if not pattern or pattern in new_table:
                 return state
 
             new_table.add(pattern)
@@ -451,32 +377,18 @@ class DatasetMDLAdapter(GSAAdapter):
             new_table.remove(pattern)
 
         elif move.operation == "replace":
-            old_patterns = tuple(
-                move.payload or ()
-            )
+            old_patterns = tuple(move.payload or ())
 
-            if (
-                pattern in new_table
-                or not old_patterns
-            ):
+            if pattern in new_table or not old_patterns:
                 return state
 
-            new_table.remove(
-                old_patterns[0]
-            )
+            new_table.remove(old_patterns[0])
             new_table.add(pattern)
 
         else:
-            raise ValueError(
-                f"Unsupported move operation: "
-                f"{move.operation}"
-            )
+            raise ValueError(f"Unsupported move operation: {move.operation}")
 
-        residual_masks = (
-            self._residual_masks_for_table(
-                frozenset(new_table)
-            )
-        )
+        residual_masks = self._residual_masks_for_table(frozenset(new_table))
 
         return MDLState(
             frozenset(new_table),
@@ -489,9 +401,7 @@ class DatasetMDLAdapter(GSAAdapter):
 
     def _residual_masks_for_table(
         self,
-        code_table: frozenset[
-            tuple[int, ...]
-        ],
+        code_table: frozenset[tuple[int, ...]],
     ) -> tuple[int, ...]:
 
         encoded_patterns = []
@@ -504,36 +414,22 @@ class DatasetMDLAdapter(GSAAdapter):
             pattern_mask = 0
 
             for item in pattern:
-                pattern_mask |= (
-                    self._item_bits[item]
-                )
+                pattern_mask |= self._item_bits[item]
 
-            encoded_patterns.append(
-                pattern_mask
-            )
+            encoded_patterns.append(pattern_mask)
 
         residual_masks = []
 
-        for transaction_mask in (
-            self._transaction_masks
-        ):
+        for transaction_mask in self._transaction_masks:
             residual_mask = transaction_mask
 
             for pattern_mask in encoded_patterns:
-                if (
-                    pattern_mask
-                    & residual_mask
-                    == pattern_mask
-                ):
+                if pattern_mask & residual_mask == pattern_mask:
                     residual_mask &= ~pattern_mask
 
-            residual_masks.append(
-                residual_mask
-            )
+            residual_masks.append(residual_mask)
 
-        return tuple(
-            residual_masks
-        )
+        return tuple(residual_masks)
 
     # ==============================================================
     # OBJECTIVE
@@ -545,16 +441,12 @@ class DatasetMDLAdapter(GSAAdapter):
     ) -> float:
 
         if state.code_table not in self._score_cache:
-            self._score_cache[
-                state.code_table
-            ] = self._mdl_cost(
+            self._score_cache[state.code_table] = self._mdl_cost(
                 state.code_table,
                 state.residual_masks,
             )
 
-        return self._score_cache[
-            state.code_table
-        ]
+        return self._score_cache[state.code_table]
 
     # ==============================================================
     # FEATURE EXTRACTION
@@ -589,13 +481,7 @@ class DatasetMDLAdapter(GSAAdapter):
         residual_masks,
     ) -> float:
 
-        residual_bits = (
-            sum(
-                mask.bit_count()
-                for mask in residual_masks
-            )
-            * 32
-        )
+        residual_bits = sum(mask.bit_count() for mask in residual_masks) * 32
 
         code_bits = 0
 
@@ -608,20 +494,8 @@ class DatasetMDLAdapter(GSAAdapter):
             if count <= 0:
                 continue
 
-            value_bits = int(
-                ceil(
-                    log2(
-                        count + 1
-                    )
-                )
-            )
+            value_bits = int(ceil(log2(count + 1)))
 
-            code_bits += (
-                value_bits
-                + len(pattern) * 32
-            )
+            code_bits += value_bits + len(pattern) * 32
 
-        return float(
-            residual_bits
-            + code_bits
-        )
+        return float(residual_bits + code_bits)

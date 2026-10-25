@@ -5,8 +5,8 @@ from typing import Any
 
 from .models import Move
 
-class GSAPrior(ABC):
 
+class GSAPrior(ABC):
     @abstractmethod
     def score(
         self,

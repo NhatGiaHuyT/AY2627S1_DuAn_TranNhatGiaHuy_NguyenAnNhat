@@ -2,18 +2,9 @@
   "progress": true,
   "datasets": [
     {
-      "name": "requirements",
-      "path": "datasets/crawling/requirements.txt",
-      "max_pattern_size": 2,
-      "candidate_sizes": [1, 2],
-      "max_candidates": 5000,
-      "move_operations": ["add", "remove", "replace"]
-    },
-    {
-      "name": "themealdb",
-      "path": "datasets/crawling/themealdb.txt",
-      "max_pattern_size": 2,
-      "candidate_sizes": [1, 2],
+      "name": "led7",
+      "path": "datasets/led7.txt",
+      "max_pattern_size": 5,
       "max_candidates": 5000,
       "move_operations": ["add", "remove", "replace"]
     }

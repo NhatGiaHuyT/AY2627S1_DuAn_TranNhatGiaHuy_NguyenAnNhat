@@ -17,7 +17,6 @@ def _quality(score, threshold):
 
 
 class UnguidedGSA(HMPGSA):
-
     name = "unguided"
 
     def key_for_move(self, state, move):
@@ -29,7 +28,9 @@ class UnguidedGSA(HMPGSA):
     def _candidate_weight(self, state, move, prior):
         return None, 1.0
 
-    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+    def update_memory(
+        self, *, state_before, state_after, move, old_score, new_score, accepted, prior
+    ):
         pass
 
     def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
@@ -48,7 +49,9 @@ class PriorOnlyGSA(HMPGSA):
     def prior_feature_for_key(self, key):
         return key
 
-    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+    def update_memory(
+        self, *, state_before, state_after, move, old_score, new_score, accepted, prior
+    ):
         pass
 
     def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
@@ -118,7 +121,9 @@ class GoodSolutionFrequencyGSA(HMPGSA):
     def prior_feature_for_key(self, key):
         return key
 
-    def update_memory(self, *, state_before, state_after, move, old_score, new_score, accepted, prior):
+    def update_memory(
+        self, *, state_before, state_after, move, old_score, new_score, accepted, prior
+    ):
         pass
 
     def update_good_solution_memory(self, *, state, score, threshold, prior, adapter):
@@ -130,12 +135,11 @@ class GoodSolutionFrequencyGSA(HMPGSA):
 
     def decay_weights(self):
         for key in self.weights:
-            self.weights[key] *= (1.0 - self.decay)
+            self.weights[key] *= 1.0 - self.decay
             self.weights[key] = max(self.epsilon, self.weights[key])
 
 
 class MutationFeatureGSA(HMPGSA):
-
     name = "mutation_feature"
 
     def key_for_move(self, state, move):

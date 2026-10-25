@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from random import Random
-from typing import Generic, Mapping, TypeVar
-
+from typing import Generic, TypeVar
 
 State = TypeVar("State")
 Move = TypeVar("Move")
@@ -13,7 +13,6 @@ class HMPGSA(
     ABC,
     Generic[State, Move, Feature, GuidanceKey],
 ):
-
     def __init__(
         self,
         *,
@@ -54,13 +53,8 @@ class HMPGSA(
 
         progress = iteration / (self.iterations - 1)
 
-        return (
-            self.temperature_start
-            + progress
-            * (
-                self.temperature_end
-                - self.temperature_start
-            )
+        return self.temperature_start + progress * (
+            self.temperature_end - self.temperature_start
         )
 
     def accept(
@@ -78,10 +72,7 @@ class HMPGSA(
 
         import math
 
-        probability = math.exp(
-            -(new_score - old_score)
-            / temperature
-        )
+        probability = math.exp(-(new_score - old_score) / temperature)
 
         return rng.random() < probability
 
@@ -198,9 +189,7 @@ class HMPGSA(
     ) -> Move:
 
         if not candidates:
-            raise ValueError(
-                "Candidate pool cannot be empty."
-            )
+            raise ValueError("Candidate pool cannot be empty.")
 
         weighted_candidates = []
 
@@ -211,27 +200,16 @@ class HMPGSA(
                 prior,
             )
 
-            weighted_candidates.append(
-                (move, weight)
-            )
+            weighted_candidates.append((move, weight))
 
-        total = sum(
-            weight
-            for _, weight in weighted_candidates
-        )
+        total = sum(weight for _, weight in weighted_candidates)
 
         if total <= 0.0:
             return rng.choice(candidates)
 
-        moves = [
-            move
-            for move, _ in weighted_candidates
-        ]
+        moves = [move for move, _ in weighted_candidates]
 
-        weights = [
-            weight
-            for _, weight in weighted_candidates
-        ]
+        weights = [weight for _, weight in weighted_candidates]
 
         return rng.choices(
             moves,
@@ -246,9 +224,7 @@ class HMPGSA(
     def decay_weights(self) -> None:
 
         for key in self.weights:
-            self.weights[key] *= (
-                1.0 - self.decay
-            )
+            self.weights[key] *= 1.0 - self.decay
 
             # Keep the key alive.
             #
@@ -297,14 +273,9 @@ class HMPGSA(
         if not self._seen_scores:
             return None
 
-        ordered = sorted(
-            self._seen_scores
-        )
+        ordered = sorted(self._seen_scores)
 
-        index = int(
-            len(ordered)
-            * self.elite_fraction
-        )
+        index = int(len(ordered) * self.elite_fraction)
 
         index = min(
             index,
@@ -312,11 +283,7 @@ class HMPGSA(
         )
 
         return ordered[index]
-
-    # ------------------------------------------------------------------
-    # Main search
-    # ------------------------------------------------------------------
-
+    
     def run(
         self,
         adapter,
@@ -335,13 +302,8 @@ class HMPGSA(
         best_state = state
         best_score = score
 
-        for iteration in range(
-            self.iterations
-        ):
-
-            temperature = self.temperature(
-                iteration
-            )
+        for iteration in range(self.iterations):
+            temperature = self.temperature(iteration)
 
             candidates = list(
                 adapter.sample_moves(
@@ -352,9 +314,7 @@ class HMPGSA(
             )
 
             if not candidates:
-                raise RuntimeError(
-                    "Adapter returned an empty candidate pool."
-                )
+                raise RuntimeError("Adapter returned an empty candidate pool.")
 
             move = self.sample_weighted_move(
                 state,
@@ -371,9 +331,7 @@ class HMPGSA(
                 move,
             )
 
-            new_score = adapter.evaluate(
-                state_after
-            )
+            new_score = adapter.evaluate(state_after)
 
             accepted = self.accept(
                 old_score,

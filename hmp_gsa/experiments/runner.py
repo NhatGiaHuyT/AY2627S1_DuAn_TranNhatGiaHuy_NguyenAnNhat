@@ -8,19 +8,16 @@ from typing import Any
 
 from tqdm import tqdm
 
-from .prior_scan import process_dataset
-
-from .gsa import (
-    UnguidedGSA,
-    PriorOnlyGSA,
-    SuccessfulFeatureGSA,
-    GoodSolutionFrequencyGSA,
-    MutationFeatureGSA,
-)
-
 from ..modules.adapter import GSAAdapter
 from ..modules.mdl import DatasetMDLAdapter
-
+from .gsa import (
+    GoodSolutionFrequencyGSA,
+    MutationFeatureGSA,
+    PriorOnlyGSA,
+    SuccessfulFeatureGSA,
+    UnguidedGSA,
+)
+from .prior_scan import process_dataset
 
 VARIANTS = {
     "unguided": UnguidedGSA,
@@ -46,15 +43,6 @@ def load_config(
 def prepare_dataset(
     dataset: dict,
 ) -> str:
-    """
-    Generate the dataset-derived prior artifacts.
-
-    This runs once per dataset, before any
-    variant/seed experiments.
-
-    Returns the derived dataset directory.
-    """
-
     return process_dataset(
         name=dataset["name"],
         file_path=dataset["path"],
@@ -68,32 +56,20 @@ def build_engine(
     seed: int,
 ):
     try:
-        engine_class = VARIANTS[
-            variant_name
-        ]
+        engine_class = VARIANTS[variant_name]
 
     except KeyError:
-        raise ValueError(
-            f"Unknown variant: {variant_name}"
-        ) from None
+        raise ValueError(f"Unknown variant: {variant_name}") from None
 
     search = config["search"]
     guidance = config["guidance"]
 
     return engine_class(
         iterations=search["iterations"],
-        candidate_pool_size=search[
-            "candidate_pool_size"
-        ],
-        temperature_start=search[
-            "temperature_start"
-        ],
-        temperature_end=search[
-            "temperature_end"
-        ],
-        elite_fraction=search[
-            "elite_fraction"
-        ],
+        candidate_pool_size=search["candidate_pool_size"],
+        temperature_start=search["temperature_start"],
+        temperature_end=search["temperature_end"],
+        elite_fraction=search["elite_fraction"],
         alpha=guidance["alpha"],
         decay=guidance["decay"],
         epsilon=guidance["epsilon"],
@@ -112,31 +88,15 @@ def build_adapter(
         encoding="utf-8",
     ) as file:
         transactions = [
-            tuple(
-                int(item)
-                for item in line.split()
-            )
-            for line in file
-            if line.strip()
+            tuple(int(item) for item in line.split()) for line in file if line.strip()
         ]
 
     return DatasetMDLAdapter(
         transactions=transactions,
-        max_pattern_size=dataset[
-            "max_pattern_size"
-        ],
-        candidate_sizes=tuple(
-            dataset["candidate_sizes"]
-        ),
-        max_candidates=dataset[
-            "max_candidates"
-        ],
-        move_operations=tuple(
-            dataset["move_operations"]
-        ),
-        cooccurrence_path=(
-            f"{derived_path}/cooccurrence.csv"
-        ),
+        max_pattern_size=dataset["max_pattern_size"],
+        max_candidates=dataset["max_candidates"],
+        move_operations=tuple(dataset["move_operations"]),
+        cooccurrence_path=(f"{derived_path}/cooccurrence.csv"),
     )
 
 
@@ -159,9 +119,7 @@ def run_variant(
         derived_path=derived_path,
     )
 
-    best_state, best_score = engine.run(
-        adapter
-    )
+    best_state, best_score = engine.run(adapter)
 
     return {
         "dataset": dataset["name"],
@@ -206,23 +164,26 @@ def save_results(
         newline="",
         encoding="utf-8",
     ) as file:
-
         writer = csv.writer(file)
 
-        writer.writerow([
-            "dataset",
-            "variant",
-            "seed",
-            "best_score",
-        ])
+        writer.writerow(
+            [
+                "dataset",
+                "variant",
+                "seed",
+                "best_score",
+            ]
+        )
 
         for result in results:
-            writer.writerow([
-                result["dataset"],
-                result["variant"],
-                result["seed"],
-                result["best_score"],
-            ])
+            writer.writerow(
+                [
+                    result["dataset"],
+                    result["variant"],
+                    result["seed"],
+                    result["best_score"],
+                ]
+            )
 
     # --------------------------------------------------------------
     # Summary
@@ -231,11 +192,7 @@ def save_results(
     scores_by_variant = defaultdict(list)
 
     for result in results:
-        scores_by_variant[
-            result["variant"]
-        ].append(
-            result["best_score"]
-        )
+        scores_by_variant[result["variant"]].append(result["best_score"])
 
     summary_path = os.path.join(
         output_dir,
@@ -248,41 +205,36 @@ def save_results(
         newline="",
         encoding="utf-8",
     ) as file:
-
         writer = csv.writer(file)
 
-        writer.writerow([
-            "dataset",
-            "variant",
-            "runs",
-            "mean",
-            "std",
-            "best",
-            "worst",
-        ])
+        writer.writerow(
+            [
+                "dataset",
+                "variant",
+                "runs",
+                "mean",
+                "std",
+                "best",
+                "worst",
+            ]
+        )
 
         for variant in scores_by_variant:
-            scores = scores_by_variant[
-                variant
-            ]
+            scores = scores_by_variant[variant]
 
-            writer.writerow([
-                dataset_name,
-                variant,
-                len(scores),
-                mean(scores),
-                (
-                    stdev(scores)
-                    if len(scores) > 1
-                    else 0.0
-                ),
-                min(scores),
-                max(scores),
-            ])
+            writer.writerow(
+                [
+                    dataset_name,
+                    variant,
+                    len(scores),
+                    mean(scores),
+                    (stdev(scores) if len(scores) > 1 else 0.0),
+                    min(scores),
+                    max(scores),
+                ]
+            )
 
-    print(
-        f"Results saved → {output_dir}"
-    )
+    print(f"Results saved → {output_dir}")
 
 
 def run_dataset(
@@ -296,23 +248,15 @@ def run_dataset(
     variants = config["variants"]
     seeds = config["seeds"]
 
-    print(
-        f"\n{'=' * 60}"
-    )
-    print(
-        f"DATASET: {name}"
-    )
-    print(
-        f"{'=' * 60}"
-    )
+    print(f"\n{'=' * 60}")
+    print(f"DATASET: {name}")
+    print(f"{'=' * 60}")
 
     # --------------------------------------------------------------
     # Dataset preprocessing
     # --------------------------------------------------------------
 
-    derived_path = prepare_dataset(
-        dataset
-    )
+    derived_path = prepare_dataset(dataset)
 
     # --------------------------------------------------------------
     # Experiment jobs
@@ -332,7 +276,6 @@ def run_dataset(
     with ThreadPoolExecutor(
         max_workers=max_workers,
     ) as executor:
-
         futures = {
             executor.submit(
                 run_variant,
@@ -354,21 +297,14 @@ def run_dataset(
         )
 
         if progress_enabled:
-
             with tqdm(
                 total=len(futures),
                 desc=f"{name}",
                 unit="run",
                 dynamic_ncols=True,
             ) as progress:
-
-                for future in as_completed(
-                    futures
-                ):
-
-                    variant_name, seed = futures[
-                        future
-                    ]
+                for future in as_completed(futures):
+                    variant_name, seed = futures[future]
 
                     result = future.result()
 
@@ -383,11 +319,7 @@ def run_dataset(
                     progress.update(1)
 
         else:
-
-            for future in as_completed(
-                futures
-            ):
-
+            for future in as_completed(futures):
                 result = future.result()
 
                 results.append(result)
@@ -396,28 +328,14 @@ def run_dataset(
     # Deterministic result ordering
     # --------------------------------------------------------------
 
-    variant_order = {
-        variant: index
-        for index, variant in enumerate(
-            variants
-        )
-    }
+    variant_order = {variant: index for index, variant in enumerate(variants)}
 
-    seed_order = {
-        seed: index
-        for index, seed in enumerate(
-            seeds
-        )
-    }
+    seed_order = {seed: index for index, seed in enumerate(seeds)}
 
     results.sort(
         key=lambda result: (
-            variant_order[
-                result["variant"]
-            ],
-            seed_order[
-                result["seed"]
-            ],
+            variant_order[result["variant"]],
+            seed_order[result["seed"]],
         )
     )
 
@@ -443,20 +361,11 @@ def run(
     configured_workers = config.get(
         "parallel",
         {},
-    ).get(
-        "max_workers"
-    )
+    ).get("max_workers")
 
-    workers = (
-        max_workers
-        if max_workers is not None
-        else configured_workers
-    )
+    workers = max_workers if max_workers is not None else configured_workers
 
-    for dataset in config[
-        "datasets"
-    ]:
-
+    for dataset in config["datasets"]:
         all_results.extend(
             run_dataset(
                 dataset=dataset,
@@ -465,14 +374,8 @@ def run(
             )
         )
 
-    print(
-        f"\n{'=' * 60}"
-    )
-    print(
-        "EXPERIMENT COMPLETE"
-    )
-    print(
-        f"{'=' * 60}"
-    )
+    print(f"\n{'=' * 60}")
+    print("EXPERIMENT COMPLETE")
+    print(f"{'=' * 60}")
 
     return all_results

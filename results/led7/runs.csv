@@ -1,0 +1,16 @@
+dataset,variant,seed,best_score
+led7,unguided,0,200721.0
+led7,unguided,1,140599.0
+led7,unguided,2,100795.0
+led7,prior_only,0,20804.0
+led7,prior_only,1,45348.0
+led7,prior_only,2,118579.0
+led7,successful_feature,0,50875.0
+led7,successful_feature,1,33730.0
+led7,successful_feature,2,28476.0
+led7,good_solution_frequency,0,34400.0
+led7,good_solution_frequency,1,88540.0
+led7,good_solution_frequency,2,32120.0
+led7,mutation_feature,0,35651.0
+led7,mutation_feature,1,25873.0
+led7,mutation_feature,2,24432.0
